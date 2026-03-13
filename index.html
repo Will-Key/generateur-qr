@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QR Code — Carte de visite</title>
+
+  <!-- Teams SDK (optionnel mais recommandé pour intégration native) -->
+  <script src="https://res.cdn.office.net/teams-js/2.0.0/js/MicrosoftTeams.min.js"></script>
+  <!-- QRCode.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --teams-purple: #4B53BC;
+      --teams-purple-light: #E8E9F8;
+      --teams-purple-dark: #3b42a0;
+      --bg: #F5F5F7;
+      --surface: #FFFFFF;
+      --border: rgba(0,0,0,0.08);
+      --text: #1a1a2e;
+      --text-muted: #6b7280;
+      --text-light: #9ca3af;
+      --success: #059669;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04);
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 0;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .header-icon {
+      width: 36px; height: 36px;
+      background: var(--teams-purple);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .header-icon svg { display: block; }
+    .header h1 {
+      font-size: 16px; font-weight: 600; color: var(--text);
+      line-height: 1.2;
+    }
+    .header p {
+      font-size: 12px; color: var(--text-muted); margin-top: 1px;
+    }
+
+    /* ── Layout ── */
+    .app {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 24px 20px;
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 20px;
+      align-items: start;
+    }
+
+    /* ── Card ── */
+    .card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .card-header {
+      padding: 14px 18px 10px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .card-header-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--teams-purple);
+    }
+    .card-header h2 {
+      font-size: 11px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.07em;
+      color: var(--text-muted);
+    }
+    .card-body { padding: 16px 18px; }
+
+    /* ── Form groups ── */
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .form-grid.single { grid-template-columns: 1fr; }
+
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    .field label {
+      font-size: 11px; font-weight: 500;
+      color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .field input {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      padding: 8px 11px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: #FAFAFA;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .field input:focus {
+      border-color: var(--teams-purple);
+      background: var(--surface);
+      box-shadow: 0 0 0 3px rgba(75,83,188,0.1);
+    }
+    .field input::placeholder { color: var(--text-light); }
+
+    .section-gap { margin-top: 16px; }
+
+    /* ── QR Panel ── */
+    .qr-panel {
+      background: var(--surface);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      position: sticky;
+      top: 76px;
+    }
+    .qr-canvas-wrap {
+      padding: 20px;
+      display: flex; flex-direction: column; align-items: center;
+      border-bottom: 1px solid var(--border);
+      min-height: 200px; justify-content: center;
+    }
+    #qrCanvas {
+      border-radius: 8px;
+      max-width: 220px;
+      display: none;
+      image-rendering: pixelated;
+    }
+    .qr-placeholder {
+      text-align: center;
+      color: var(--text-muted);
+    }
+    .qr-placeholder svg { opacity: 0.18; display: block; margin: 0 auto 12px; }
+    .qr-placeholder p { font-size: 12px; line-height: 1.5; max-width: 180px; }
+
+    .qr-meta {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    #personName {
+      font-size: 15px; font-weight: 600;
+      color: var(--text); display: none;
+    }
+    #personSub {
+      font-size: 12px; color: var(--text-muted); margin-top: 2px;
+      display: none;
+    }
+    #personOrg {
+      font-size: 12px; font-weight: 500;
+      color: var(--teams-purple); margin-top: 2px;
+      display: none;
+    }
+
+    /* ── Options ── */
+    .options { padding: 14px 18px; border-bottom: 1px solid var(--border); }
+    .options-title {
+      font-size: 11px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.07em;
+      color: var(--text-muted); margin-bottom: 12px;
+    }
+    .opt-row {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+    }
+    .opt-row:last-child { margin-bottom: 0; }
+    .opt-label { font-size: 12px; color: var(--text-muted); flex: 1; }
+    .opt-row input[type="color"] {
+      width: 32px; height: 28px;
+      border: 1px solid var(--border);
+      border-radius: 6px; padding: 2px; cursor: pointer;
+      background: none;
+    }
+    .opt-row input[type="range"] {
+      flex: 2; accent-color: var(--teams-purple);
+      height: 3px; cursor: pointer;
+    }
+    .opt-val {
+      font-size: 11px; font-family: 'DM Mono', monospace;
+      color: var(--text); min-width: 34px; text-align: right;
+    }
+
+    /* ── Buttons ── */
+    .btn-group { padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; }
+    .btn {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 10px 16px;
+      border-radius: var(--radius-sm);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px; font-weight: 500; cursor: pointer;
+      transition: all 0.15s; border: none;
+    }
+    .btn-primary {
+      background: var(--teams-purple); color: white;
+    }
+    .btn-primary:hover:not(:disabled) { background: var(--teams-purple-dark); }
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid var(--teams-purple);
+      color: var(--teams-purple);
+    }
+    .btn-secondary:hover:not(:disabled) { background: var(--teams-purple-light); }
+    .btn:disabled { opacity: 0.38; cursor: not-allowed; }
+    .btn svg { flex-shrink: 0; }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(60px);
+      background: var(--text); color: white;
+      padding: 9px 18px; border-radius: 100px;
+      font-size: 13px; font-weight: 500;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+      opacity: 0; transition: all 0.28s cubic-bezier(0.34,1.56,0.64,1);
+      pointer-events: none; white-space: nowrap; z-index: 999;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ── Footer ── */
+    .footer {
+      text-align: center; padding: 16px;
+      font-size: 11px; color: var(--text-light);
+    }
+    .footer a { color: var(--teams-purple); text-decoration: none; }
+
+    @media (max-width: 640px) {
+      .app { grid-template-columns: 1fr; }
+      .qr-panel { position: static; }
+      .form-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-icon">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+      <rect x="3" y="14" width="7" height="7"/><path d="M14 14h4v4"/><path d="M18 14v.01"/><path d="M14 18v.01"/><path d="M18 18v.01"/>
+    </svg>
+  </div>
+  <div>
+    <h1>Générateur de QR code</h1>
+    <p>Carte de visite vCard — Format universel</p>
+  </div>
+</header>
+
+<main class="app">
+
+  <!-- ── FORMULAIRE ── -->
+  <div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-header-dot"></div><h2>Identité</h2></div>
+      <div class="card-body">
+        <div class="form-grid">
+          <div class="field"><label>Prénom</label><input id="fn" type="text" placeholder="Marie" oninput="update()"></div>
+          <div class="field"><label>Nom</label><input id="ln" type="text" placeholder="Dupont" oninput="update()"></div>
+          <div class="field"><label>Titre / Poste</label><input id="jobtitle" type="text" placeholder="Directrice commerciale" oninput="update()"></div>
+          <div class="field"><label>Département</label><input id="dept" type="text" placeholder="Sales & Marketing" oninput="update()"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card section-gap">
+      <div class="card-header"><div class="card-header-dot"></div><h2>Entreprise</h2></div>
+      <div class="card-body">
+        <div class="form-grid">
+          <div class="field"><label>Société</label><input id="org" type="text" placeholder="Acme Corp" oninput="update()"></div>
+          <div class="field"><label>Site web</label><input id="url" type="text" placeholder="https://acme.com" oninput="update()"></div>
+          <div class="field form-grid single"><label>Adresse</label><input id="adr" type="text" placeholder="12 rue de la Paix, 75001 Paris" oninput="update()"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card section-gap">
+      <div class="card-header"><div class="card-header-dot"></div><h2>Coordonnées</h2></div>
+      <div class="card-body">
+        <div class="form-grid">
+          <div class="field"><label>Email professionnel</label><input id="email" type="email" placeholder="m.dupont@acme.com" oninput="update()"></div>
+          <div class="field"><label>Téléphone direct</label><input id="tel" type="text" placeholder="+33 1 23 45 67 89" oninput="update()"></div>
+          <div class="field"><label>Mobile</label><input id="mobile" type="text" placeholder="+33 6 12 34 56 78" oninput="update()"></div>
+          <div class="field"><label>LinkedIn</label><input id="linkedin" type="text" placeholder="linkedin.com/in/mdupont" oninput="update()"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── QR PANEL ── -->
+  <div class="qr-panel">
+
+    <div class="qr-canvas-wrap">
+      <div class="qr-placeholder" id="qrPlaceholder">
+        <svg width="72" height="72" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="1.5">
+          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+          <rect x="3" y="14" width="7" height="7"/><path d="M14 14h4v4"/><path d="M18 14v.01"/><path d="M14 18v.01"/><path d="M18 18v.01"/>
+        </svg>
+        <p>Remplissez vos informations pour générer le QR code</p>
+      </div>
+      <canvas id="qrCanvas"></canvas>
+    </div>
+
+    <div class="qr-meta">
+      <div id="personName"></div>
+      <div id="personSub"></div>
+      <div id="personOrg"></div>
+    </div>
+
+    <div class="options">
+      <div class="options-title">Personnalisation</div>
+      <div class="opt-row">
+        <span class="opt-label">Couleur</span>
+        <input type="color" id="qrColor" value="#1a1a2e" oninput="update()">
+      </div>
+      <div class="opt-row">
+        <span class="opt-label">Taille</span>
+        <input type="range" id="qrSize" min="160" max="400" value="220" step="10" oninput="update(); document.getElementById('sizeVal').textContent=this.value+'px'">
+        <span class="opt-val" id="sizeVal">220px</span>
+      </div>
+    </div>
+
+    <div class="btn-group">
+      <button class="btn btn-primary" id="dlPng" onclick="downloadPNG()" disabled>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Télécharger PNG
+      </button>
+      <button class="btn btn-secondary" id="dlVcard" onclick="downloadVCard()" disabled>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4"/><path d="M2 17l4-4 4 4 6-6 6 6"/></svg>
+        Télécharger vCard (.vcf)
+      </button>
+    </div>
+
+  </div>
+
+</main>
+
+<div class="footer">Générateur QR Code · intégration Microsoft Teams · <a href="#">Aide</a></div>
+<div id="toast"></div>
+
+<script>
+  // Init Teams SDK si disponible
+  if (window.microsoftTeams) {
+    microsoftTeams.app.initialize();
+  }
+
+  let hasData = false;
+  let renderTimeout = null;
+
+  function getVCard() {
+    const fn = v('fn'), ln = v('ln'), jobtitle = v('jobtitle'), dept = v('dept');
+    const org = v('org'), url = v('url'), adr = v('adr');
+    const email = v('email'), tel = v('tel'), mobile = v('mobile'), linkedin = v('linkedin');
+
+    let vc = 'BEGIN:VCARD\r\nVERSION:3.0\r\n';
+    vc += `N:${ln};${fn};;;\r\n`;
+    vc += `FN:${[fn, ln].filter(Boolean).join(' ') || 'Contact'}\r\n`;
+    if (jobtitle) vc += `TITLE:${jobtitle}\r\n`;
+    if (dept || org) vc += `ORG:${org}${dept ? ';' + dept : ''}\r\n`;
+    if (email) vc += `EMAIL;TYPE=WORK:${email}\r\n`;
+    if (tel) vc += `TEL;TYPE=WORK,VOICE:${tel}\r\n`;
+    if (mobile) vc += `TEL;TYPE=CELL:${mobile}\r\n`;
+    if (adr) vc += `ADR;TYPE=WORK:;;${adr};;;;\r\n`;
+    if (url) vc += `URL:${url.startsWith('http') ? url : 'https://' + url}\r\n`;
+    if (linkedin) {
+      const li = linkedin.startsWith('http') ? linkedin : 'https://' + linkedin;
+      vc += `X-SOCIALPROFILE;type=linkedin:${li}\r\n`;
+    }
+    vc += 'END:VCARD';
+    return vc;
+  }
+
+  function v(id) { return document.getElementById(id).value.trim(); }
+
+  function update() {
+    const fn = v('fn'), ln = v('ln'), email = v('email'), org = v('org');
+    hasData = !!(fn || ln || email || org);
+
+    const canvas = document.getElementById('qrCanvas');
+    const placeholder = document.getElementById('qrPlaceholder');
+    const dlPng = document.getElementById('dlPng');
+    const dlVcard = document.getElementById('dlVcard');
+
+    if (!hasData) {
+      canvas.style.display = 'none';
+      placeholder.style.display = 'block';
+      dlPng.disabled = true; dlVcard.disabled = true;
+      ['personName','personSub','personOrg'].forEach(id => document.getElementById(id).style.display = 'none');
+      return;
+    }
+
+    placeholder.style.display = 'none';
+    canvas.style.display = 'block';
+    dlPng.disabled = false; dlVcard.disabled = false;
+
+    const nameEl = document.getElementById('personName');
+    const subEl = document.getElementById('personSub');
+    const orgEl = document.getElementById('personOrg');
+    const fullName = [fn, ln].filter(Boolean).join(' ');
+    nameEl.textContent = fullName; nameEl.style.display = fullName ? 'block' : 'none';
+    const sub = [v('jobtitle'), v('dept')].filter(Boolean).join(' · ');
+    subEl.textContent = sub; subEl.style.display = sub ? 'block' : 'none';
+    orgEl.textContent = org; orgEl.style.display = org ? 'block' : 'none';
+
+    clearTimeout(renderTimeout);
+    renderTimeout = setTimeout(renderQR, 80);
+  }
+
+  function renderQR() {
+    const color = document.getElementById('qrColor').value;
+    const size = parseInt(document.getElementById('qrSize').value);
+    const canvas = document.getElementById('qrCanvas');
+    canvas.width = size; canvas.height = size;
+    canvas.style.width = Math.min(size, 240) + 'px';
+    canvas.style.height = Math.min(size, 240) + 'px';
+
+    const tmp = document.createElement('div');
+    new QRCode(tmp, {
+      text: getVCard(),
+      width: size, height: size,
+      colorDark: color,
+      colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+
+    setTimeout(() => {
+      const src = tmp.querySelector('canvas') ? tmp.querySelector('canvas').toDataURL() : (tmp.querySelector('img') ? tmp.querySelector('img').src : null);
+      if (!src) return;
+      const img = new Image();
+      img.onload = () => { const ctx = canvas.getContext('2d'); ctx.clearRect(0,0,size,size); ctx.drawImage(img,0,0,size,size); };
+      img.src = src;
+    }, 100);
+  }
+
+  function downloadPNG() {
+    if (!hasData) return;
+    const canvas = document.getElementById('qrCanvas');
+    const link = document.createElement('a');
+    link.download = `qrcode-${(v('fn') + '-' + v('ln')).toLowerCase().replace(/\s+/g,'-') || 'contact'}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    showToast('QR code téléchargé');
+  }
+
+  function downloadVCard() {
+    if (!hasData) return;
+    const blob = new Blob([getVCard()], { type: 'text/vcard;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.download = `${(v('fn') + '-' + v('ln')).toLowerCase().replace(/\s+/g,'-') || 'contact'}.vcf`;
+    link.href = url; link.click();
+    URL.revokeObjectURL(url);
+    showToast('vCard téléchargée');
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2400);
+  }
+</script>
+</body>
+</html>
